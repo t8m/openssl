@@ -209,8 +209,8 @@ const OPTIONS ca_options[] = {
     {"noemailDN", OPT_NOEMAILDN, '-', "Don't add the EMAIL field to the DN"},
 
     OPT_SECTION("Signing"),
-    {"md", OPT_MD, 's', "md to use; one of md2, md5, sha or sha1"},
-    {"keyfile", OPT_KEYFILE, 's', "The CA private key"},
+    {"md", OPT_MD, 's', "md to use; see openssl help for list"},
+    {"keyfile", OPT_KEYFILE, 's', "Private key"},
     {"keyform", OPT_KEYFORM, 'f', "Private key file format (ENGINE, other values ignored)"},
     {"passin", OPT_PASSIN, 's', "Key and cert input file pass phrase source"},
     {"key", OPT_KEY, 's', "Key to decrypt key or cert files. Better use -passin"},
