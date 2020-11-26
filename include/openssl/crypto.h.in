@@ -38,6 +38,7 @@ use OpenSSL::stackhash qw(generate_stack_macros);
 # include <openssl/types.h>
 # include <openssl/opensslconf.h>
 # include <openssl/cryptoerr.h>
+# include <openssl/fips.h>
 
 # ifdef CHARSET_EBCDIC
 #  include <openssl/ebcdic.h>

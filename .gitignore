@@ -151,7 +151,6 @@ providers/common/include/prov/der_sm2.h
 # needed on this branch
 /include/openssl/asn1_mac.h
 /include/openssl/des_old.h
-/include/openssl/fips.h
 /include/openssl/fips_rand.h
 /include/openssl/krb5_asn.h
 /include/openssl/kssl.h

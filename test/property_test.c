@@ -412,6 +412,18 @@ err:
     return ret;
 }
 
+static int test_downstream_FIPS_mode(void)
+{
+    int ret = 0;
+
+    ret = TEST_true(EVP_set_default_properties(NULL, "fips=yes"))
+          && TEST_true(FIPS_mode())
+          && TEST_true(EVP_set_default_properties(NULL, "fips=no"))
+          && TEST_false(FIPS_mode());
+
+    return ret;
+}
+
 
 int setup_tests(void)
 {
@@ -424,5 +436,6 @@ int setup_tests(void)
     ADD_TEST(test_property);
     ADD_TEST(test_query_cache_stochastic);
     ADD_TEST(test_fips_mode);
+    ADD_TEST(test_downstream_FIPS_mode);
     return 1;
 }
