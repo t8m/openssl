@@ -11,6 +11,13 @@
 #include <openssl/conf.h>
 #include "internal/thread_once.h"
 #include "internal/property.h"
+#ifndef FIPS_MODULE
+# include <sys/types.h>
+# include <sys/stat.h>
+# include <fcntl.h>
+# include <unistd.h>
+# include <openssl/evp.h>
+#endif
 
 struct ossl_lib_ctx_onfree_list_st {
     ossl_lib_ctx_onfree_fn *fn;
@@ -38,6 +45,40 @@ struct ossl_lib_ctx_st {
     int run_once_ret[OSSL_LIB_CTX_MAX_RUN_ONCE];
     struct ossl_lib_ctx_onfree_list_st *onfreelist;
 };
+
+# ifndef FIPS_MODULE
+# define FIPS_MODE_SWITCH_FILE "/proc/sys/crypto/fips_enabled"
+
+static int kernel_fips_flag;
+
+static void read_kernel_fips_flag(void)
+{
+    char buf[2] = "0";
+    int fd;
+
+    if (ossl_safe_getenv("OPENSSL_FORCE_FIPS_MODE") != NULL) {
+        buf[0] = '1';
+    } else if ((fd = open(FIPS_MODE_SWITCH_FILE, O_RDONLY)) >= 0) {
+        while (read(fd, buf, sizeof(buf)) < 0 && errno == EINTR) ;
+        close(fd);
+    }
+
+    if (buf[0] == '1') {
+        kernel_fips_flag = 1;
+    }
+
+    return;
+}
+
+static int apply_kernel_fips_flag(OSSL_LIB_CTX *ctx)
+{
+    if (kernel_fips_flag) {
+        return EVP_default_properties_enable_fips(ctx, 1);
+    }
+
+    return 1;
+}
+# endif
 
 static int context_init(OSSL_LIB_CTX *ctx)
 {
@@ -73,6 +114,12 @@ static int context_init(OSSL_LIB_CTX *ctx)
     /* Everything depends on properties, so we also pre-initialise that */
     if (!ossl_property_parse_init(ctx))
         goto err;
+
+# ifndef FIPS_MODULE
+    /* Preset the fips=yes default property with kernel FIPS mode */
+    if (!apply_kernel_fips_flag(ctx))
+        goto err;
+# endif
 
     return 1;
  err:
@@ -121,6 +168,8 @@ static CRYPTO_THREAD_LOCAL default_context_thread_local;
 
 DEFINE_RUN_ONCE_STATIC(default_context_do_init)
 {
+    read_kernel_fips_flag();
+
     return CRYPTO_THREAD_init_local(&default_context_thread_local, NULL)
         && context_init(&default_context_int);
 }
