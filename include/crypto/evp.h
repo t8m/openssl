@@ -854,4 +854,10 @@ int evp_set_default_properties_int(OSSL_LIB_CTX *libctx, const char *propq,
 
 void evp_md_ctx_clear_digest(EVP_MD_CTX *ctx, int force);
 
+/* Three possible states: */
+# define EVP_PKEY_STATE_UNKNOWN         0
+# define EVP_PKEY_STATE_LEGACY          1
+# define EVP_PKEY_STATE_PROVIDER        2
+int evp_pkey_ctx_state(const EVP_PKEY_CTX *ctx);
+
 #endif /* OSSL_CRYPTO_EVP_H */
