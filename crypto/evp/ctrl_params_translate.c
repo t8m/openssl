@@ -1597,9 +1597,9 @@ static int get_payload_public_key(enum state state,
             const EC_GROUP *ecg = EC_KEY_get0_group(eckey);
             const EC_POINT *point = EC_KEY_get0_public_key(eckey);
 
-            buflen = EC_POINT_point2buf(ecg, point,
-                                        POINT_CONVERSION_COMPRESSED,
-                                        &buf, bnctx);
+            ctx->sz = EC_POINT_point2buf(ecg, point,
+                                         POINT_CONVERSION_COMPRESSED,
+                                         &buf, bnctx);
             ctx->p2 = buf;
             break;
         }
