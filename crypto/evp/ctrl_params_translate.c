@@ -553,8 +553,8 @@ static int default_fixup_args(enum state state,
 
                 if (ctx->ishex) {
                     strcpy(ctx->name_buf, "hex");
-                    if (BUF_strlcat(ctx->name_buf, tmp_ctrl_str,
-                                    sizeof(ctx->name_buf)) <= 3) {
+                    if (OPENSSL_strlcat(ctx->name_buf, tmp_ctrl_str,
+                                        sizeof(ctx->name_buf)) <= 3) {
                         ERR_raise(ERR_LIB_EVP, ERR_R_INTERNAL_ERROR);
                         return -1;
                     }
@@ -576,6 +576,8 @@ static int default_fixup_args(enum state state,
                 }
                 return 0;
             }
+            ctx->allocated_buf = ctx->params->data;
+            ctx->buflen = ctx->params->data_size;
         }
         break;
     case POST_CTRL_STR_TO_PARAMS:
@@ -1465,20 +1467,6 @@ static int get_payload_group_name(enum state state,
 
     ctx->p2 = NULL;
     switch (EVP_PKEY_base_id(pkey)) {
-#ifndef OPENSSL_NO_EC
-    case EVP_PKEY_EC:
-        {
-            const EC_GROUP *grp =
-                EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(pkey));
-            int nid = NID_undef;
-
-            if (grp != NULL)
-                nid = EC_GROUP_get_curve_name(grp);
-            if (nid != NID_undef)
-                ctx->p2 = (char *)ec_curve_nid2name(nid);
-        }
-        break;
-#endif
 #ifndef OPENSSL_NO_DH
 # ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DH:
@@ -1492,6 +1480,22 @@ static int get_payload_group_name(enum state state,
 
                 ctx->p2 = (char *)ossl_ffc_named_group_get_name(dh_group);
             }
+        }
+        break;
+# endif
+#endif
+#ifndef OPENSSL_NO_EC
+# ifndef OPENSSL_NO_DEPRECATED_3_0
+    case EVP_PKEY_EC:
+        {
+            const EC_GROUP *grp =
+                EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(pkey));
+            int nid = NID_undef;
+
+            if (grp != NULL)
+                nid = EC_GROUP_get_curve_name(grp);
+            if (nid != NID_undef)
+                ctx->p2 = (char *)ec_curve_nid2name(nid);
         }
         break;
 # endif
@@ -1529,6 +1533,7 @@ static int get_payload_private_key(enum state state,
 # endif
 #endif
 #ifndef OPENSSL_NO_EC
+# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_EC:
         {
             EC_KEY *ec = EVP_PKEY_get0_EC_KEY(pkey);
@@ -1536,6 +1541,7 @@ static int get_payload_private_key(enum state state,
             ctx->p2 = (BIGNUM *)EC_KEY_get0_private_key(ec);
         }
         break;
+# endif
 #endif
     default:
         ERR_raise(ERR_LIB_EVP, EVP_R_UNSUPPORTED_KEY_TYPE);
@@ -1551,7 +1557,6 @@ static int get_payload_public_key(enum state state,
 {
     EVP_PKEY *pkey = ctx->p2;
     unsigned char *buf = NULL;
-    size_t buflen = 0;
     int ret;
 
     ctx->p2 = NULL;
@@ -1561,9 +1566,8 @@ static int get_payload_public_key(enum state state,
     case EVP_PKEY_DH:
         switch (ctx->params->data_type) {
         case OSSL_PARAM_OCTET_STRING:
-            buflen = dh_key2buf(EVP_PKEY_get0_DH(pkey), &buf, 0, 1);
+            ctx->sz = dh_key2buf(EVP_PKEY_get0_DH(pkey), &buf, 0, 1);
             ctx->p2 = buf;
-            ctx->sz = buflen;
             break;
         case OSSL_PARAM_UNSIGNED_INTEGER:
             ctx->p2 = (void *)DH_get0_pub_key(EVP_PKEY_get0_DH(pkey));
@@ -1585,6 +1589,7 @@ static int get_payload_public_key(enum state state,
 # endif
 #endif
 #ifndef OPENSSL_NO_EC
+# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_EC:
         if (ctx->params->data_type == OSSL_PARAM_OCTET_STRING) {
             EC_KEY *eckey = EVP_PKEY_get0_EC_KEY(pkey);
@@ -1599,6 +1604,7 @@ static int get_payload_public_key(enum state state,
             break;
         }
         return 0;
+# endif
 #endif
     default:
         ERR_raise(ERR_LIB_EVP, EVP_R_UNSUPPORTED_KEY_TYPE);
@@ -1823,7 +1829,7 @@ static int get_rsa_payload_coefficient(enum state state,
 
             if (coefficientnum - 1 < pnum
                 && RSA_get0_multi_prime_crt_params(r, exps, coeffs))
-                bn = coeffs[coefficientnum - 2];
+                bn = coeffs[coefficientnum - 1];
         }
         break;
     }
