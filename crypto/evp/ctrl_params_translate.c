@@ -7,7 +7,13 @@
  * https://www.openssl.org/source/license.html
  */
 
-#define OPENSSL_SUPPRESS_DEPRECATED
+/*
+ * Some ctrls depend on deprecated functionality.  We trust that this is
+ * functionality that remains internally even when 'no-deprecated' is
+ * configured.  When we drop #legacy EVP_PKEYs, this source should be
+ * possible to drop as well.
+ */
+#include "internal/deprecated.h"
 
 #include <string.h>
 
@@ -1468,7 +1474,6 @@ static int get_payload_group_name(enum state state,
     ctx->p2 = NULL;
     switch (EVP_PKEY_base_id(pkey)) {
 #ifndef OPENSSL_NO_DH
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DH:
         {
             DH *dh = EVP_PKEY_get0_DH(pkey);
@@ -1482,10 +1487,8 @@ static int get_payload_group_name(enum state state,
             }
         }
         break;
-# endif
 #endif
 #ifndef OPENSSL_NO_EC
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_EC:
         {
             const EC_GROUP *grp =
@@ -1498,7 +1501,6 @@ static int get_payload_group_name(enum state state,
                 ctx->p2 = (char *)ec_curve_nid2name(nid);
         }
         break;
-# endif
 #endif
     default:
         ERR_raise(ERR_LIB_EVP, EVP_R_UNSUPPORTED_KEY_TYPE);
@@ -1522,7 +1524,6 @@ static int get_payload_private_key(enum state state,
 
     switch (EVP_PKEY_base_id(pkey)) {
 #ifndef OPENSSL_NO_DH
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DH:
         {
             DH *dh = EVP_PKEY_get0_DH(pkey);
@@ -1530,10 +1531,8 @@ static int get_payload_private_key(enum state state,
             ctx->p2 = (BIGNUM *)DH_get0_priv_key(dh);
         }
         break;
-# endif
 #endif
 #ifndef OPENSSL_NO_EC
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_EC:
         {
             EC_KEY *ec = EVP_PKEY_get0_EC_KEY(pkey);
@@ -1541,7 +1540,6 @@ static int get_payload_private_key(enum state state,
             ctx->p2 = (BIGNUM *)EC_KEY_get0_private_key(ec);
         }
         break;
-# endif
 #endif
     default:
         ERR_raise(ERR_LIB_EVP, EVP_R_UNSUPPORTED_KEY_TYPE);
@@ -1562,7 +1560,6 @@ static int get_payload_public_key(enum state state,
     ctx->p2 = NULL;
     switch (EVP_PKEY_base_id(pkey)) {
 #ifndef OPENSSL_NO_DH
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DH:
         switch (ctx->params->data_type) {
         case OSSL_PARAM_OCTET_STRING:
@@ -1576,20 +1573,16 @@ static int get_payload_public_key(enum state state,
             return 0;
         }
         break;
-# endif
 #endif
 #ifndef OPENSSL_NO_DSA
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DSA:
         if (ctx->params->data_type == OSSL_PARAM_UNSIGNED_INTEGER) {
             ctx->p2 = (void *)DSA_get0_pub_key(EVP_PKEY_get0_DSA(pkey));
             break;
         }
         return 0;
-# endif
 #endif
 #ifndef OPENSSL_NO_EC
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_EC:
         if (ctx->params->data_type == OSSL_PARAM_OCTET_STRING) {
             EC_KEY *eckey = EVP_PKEY_get0_EC_KEY(pkey);
@@ -1604,7 +1597,6 @@ static int get_payload_public_key(enum state state,
             break;
         }
         return 0;
-# endif
 #endif
     default:
         ERR_raise(ERR_LIB_EVP, EVP_R_UNSUPPORTED_KEY_TYPE);
@@ -1638,18 +1630,14 @@ static int get_dh_dsa_payload_p(enum state state,
 
     switch (EVP_PKEY_base_id(pkey)) {
 #ifndef OPENSSL_NO_DH
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DH:
         bn = DH_get0_p(EVP_PKEY_get0_DH(pkey));
         break;
-# endif
 #endif
 #ifndef OPENSSL_NO_DSA
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DSA:
         bn = DSA_get0_p(EVP_PKEY_get0_DSA(pkey));
         break;
-# endif
 #endif
     default:
         ERR_raise(ERR_LIB_EVP, EVP_R_UNSUPPORTED_KEY_TYPE);
@@ -1666,18 +1654,14 @@ static int get_dh_dsa_payload_q(enum state state,
 
     switch (EVP_PKEY_base_id(ctx->p2)) {
 #ifndef OPENSSL_NO_DH
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DH:
         bn = DH_get0_q(EVP_PKEY_get0_DH(ctx->p2));
         break;
-# endif
 #endif
 #ifndef OPENSSL_NO_DSA
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DSA:
         bn = DSA_get0_q(EVP_PKEY_get0_DSA(ctx->p2));
         break;
-# endif
 #endif
     }
 
@@ -1692,25 +1676,20 @@ static int get_dh_dsa_payload_g(enum state state,
 
     switch (EVP_PKEY_base_id(ctx->p2)) {
 #ifndef OPENSSL_NO_DH
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DH:
         bn = DH_get0_g(EVP_PKEY_get0_DH(ctx->p2));
         break;
-# endif
 #endif
 #ifndef OPENSSL_NO_DSA
-# ifndef OPENSSL_NO_DEPRECATED_3_0
     case EVP_PKEY_DSA:
         bn = DSA_get0_g(EVP_PKEY_get0_DSA(ctx->p2));
         break;
-# endif
 #endif
     }
 
     return get_payload_bn(state, translation, ctx, bn);
 }
 
-#ifndef OPENSSL_NO_DEPRECATED_3_0
 static int get_rsa_payload_n(enum state state,
                              const struct translation_st *translation,
                              struct translation_ctx_st *ctx)
@@ -1901,7 +1880,6 @@ IMPL_GET_RSA_PAYLOAD_COEFFICIENT(6)
 IMPL_GET_RSA_PAYLOAD_COEFFICIENT(7)
 IMPL_GET_RSA_PAYLOAD_COEFFICIENT(8)
 IMPL_GET_RSA_PAYLOAD_COEFFICIENT(9)
-#endif  /* OPENSSL_NO_DEPRECATED_3_0 */
 
 /*-
  * The translation table itself
@@ -2245,7 +2223,6 @@ static const struct translation_st evp_pkey_translations[] = {
       OSSL_PKEY_PARAM_FFC_Q, OSSL_PARAM_UNSIGNED_INTEGER,
       get_dh_dsa_payload_q },
 
-#ifndef OPENSSL_NO_DEPRECATED_3_0
     /* RSA */
     { GET, -1, -1, -1, 0, NULL, NULL,
       OSSL_PKEY_PARAM_RSA_N, OSSL_PARAM_UNSIGNED_INTEGER,
@@ -2343,7 +2320,6 @@ static const struct translation_st evp_pkey_translations[] = {
     { GET, -1, -1, -1, 0, NULL, NULL,
       OSSL_PKEY_PARAM_RSA_COEFFICIENT9, OSSL_PARAM_UNSIGNED_INTEGER,
       get_rsa_payload_c9 },
-#endif  /* OPENSSL_NO_DEPRECATED_3_0 */
 };
 
 static const struct translation_st *
