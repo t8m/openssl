@@ -44,6 +44,9 @@ python3 -m venv venv-pycrypto
 
 cd pyca-cryptography
 
+git fetch https://github.com/reaperhulk/cryptography.git 300
+git checkout FETCH_HEAD
+
 pip3 install setuptools-rust
 
 pip3 install ./vectors/
