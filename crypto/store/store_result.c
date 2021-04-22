@@ -20,6 +20,7 @@
 #include <openssl/store.h>
 #include "internal/provider.h"
 #include "internal/passphrase.h"
+#include "internal/cryptlib.h"   /* ossl_assert */
 #include "crypto/evp.h"
 #include "crypto/x509.h"
 #include "store_local.h"
@@ -126,15 +127,17 @@ int ossl_store_handle_load_result(const OSSL_PARAM params[], void *arg)
      * The helper functions return 0 on actual errors, otherwise 1, even if
      * they didn't fill out |*v|.
      */
+    if (!ossl_assert(*v == NULL)) /* possible internal error causing leaks */
+        goto err;
     if (!try_name(&helper_data, v))
         goto err;
-    if (!try_key(&helper_data, v, ctx, provider, libctx, propq))
+    if (*v == NULL && !try_key(&helper_data, v, ctx, provider, libctx, propq))
         goto err;
-    if (!try_cert(&helper_data, v, libctx, propq))
+    if (*v == NULL && !try_cert(&helper_data, v, libctx, propq))
         goto err;
-    if (!try_crl(&helper_data, v, libctx, propq))
+    if (*v == NULL && !try_crl(&helper_data, v, libctx, propq))
         goto err;
-    if (!try_pkcs12(&helper_data, v, ctx, libctx, propq))
+    if (*v == NULL && !try_pkcs12(&helper_data, v, ctx, libctx, propq))
         goto err;
 
     return (*v != NULL);
@@ -379,6 +382,7 @@ static int try_key(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
         || data->object_type == OSSL_OBJECT_PKEY) {
         EVP_PKEY *pk = NULL;
 
+        ERR_set_mark();
         /* Prefer key by reference than key by value */
         if (data->object_type == OSSL_OBJECT_PKEY && data->ref != NULL) {
             pk = try_key_ref(data, ctx, provider, libctx, propq);
@@ -410,6 +414,11 @@ static int try_key(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
                 pk = try_key_value_legacy(data, &store_info_new, ctx,
                                           cb, cbarg, libctx, propq);
         }
+
+        if (pk == NULL)
+            ERR_clear_last_mark();
+        else
+            ERR_pop_to_mark();
 
         if (pk != NULL) {
             data->object_type = OSSL_OBJECT_PKEY;
