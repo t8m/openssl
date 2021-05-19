@@ -82,7 +82,7 @@ static void *fips_prov_ossl_ctx_new(OSSL_LIB_CTX *libctx)
 {
     FIPS_GLOBAL *fgbl = OPENSSL_zalloc(sizeof(*fgbl));
 
-    if (!fgbl)
+    if (fgbl == NULL)
         return NULL;
     fgbl->fips_security_checks = 1;
     fgbl->fips_security_check_option = "1";
