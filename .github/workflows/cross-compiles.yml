@@ -61,6 +61,6 @@ jobs:
         sudo apt-get -yq --no-install-suggests --no-install-recommends --force-yes install ${{ matrix.platform.package }}
     - uses: actions/checkout@v2
     - name: config
-      run: ./config --banner=Configured --strict-warnings enable-fips --cross-compile-prefix=${{ matrix.platform.cross }} ${{ matrix.platform.target }} && perl configdata.pm --dump
+      run: ./config no-asm --cross-compile-prefix=${{ matrix.platform.cross }} ${{ matrix.platform.target }} && perl configdata.pm --dump
     - name: make
       run: make -s -j4
