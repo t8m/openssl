@@ -231,7 +231,7 @@ int EVP_PKEY_derive_init_ex(EVP_PKEY_CTX *ctx, const OSSL_PARAM params[])
             ctx->pkey = pkey;
     } else {
         provkey = evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
-                                            &tmp_keymgmt, ctx->propquery);
+                                              &tmp_keymgmt, ctx->propquery);
     }
     if (provkey == NULL)
         goto legacy;
@@ -259,15 +259,21 @@ int EVP_PKEY_derive_init_ex(EVP_PKEY_CTX *ctx, const OSSL_PARAM params[])
      */
     exchange = EVP_KEYEXCH_fetch(ctx->libctx, supported_exch, ctx->propquery);
 
-    if (exchange == NULL
-        || (EVP_KEYMGMT_get0_provider(ctx->keymgmt)
-            != EVP_KEYEXCH_get0_provider(exchange))) {
-        /*
-         * We don't need to free ctx->keymgmt here, as it's not necessarily
-         * tied to this operation.  It will be freed by EVP_PKEY_CTX_free().
-         */
-        EVP_KEYEXCH_free(exchange);
+    if (exchange == NULL)
         goto legacy;
+
+    tmp_keymgmt = EVP_KEYEXCH_get0_provider(exchange);
+    if (EVP_KEYMGMT_get0_provider(ctx->keymgmt) != tmp_keymgmt) {
+        provkey = evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
+                                              &tmp_keymgmt, ctx->propquery);
+        if (provkey == NULL) {
+            /*
+             * We don't need to free ctx->keymgmt here, as it's not necessarily
+             * tied to this operation.  It will be freed by EVP_PKEY_CTX_free().
+             */
+            EVP_KEYEXCH_free(exchange);
+            goto legacy;
+        }
     }
 
     /*
@@ -323,6 +329,7 @@ int EVP_PKEY_derive_set_peer_ex(EVP_PKEY_CTX *ctx, EVP_PKEY *peer,
     int ret = 0, check;
     void *provkey = NULL;
     EVP_PKEY_CTX *check_ctx = NULL;
+    EVP_KEYMGMT *tmp_keymgmt;
 
     if (ctx == NULL) {
         ERR_raise(ERR_LIB_EVP, ERR_R_PASSED_NULL_PARAMETER);
@@ -347,7 +354,8 @@ int EVP_PKEY_derive_set_peer_ex(EVP_PKEY_CTX *ctx, EVP_PKEY *peer,
             return -1;
     }
 
-    provkey = evp_pkey_export_to_provider(peer, ctx->libctx, &ctx->keymgmt,
+    tmp_keymgmt = EVP_KEYEXCH_get0_provider(ctx->op.kex.exchange);
+    provkey = evp_pkey_export_to_provider(peer, ctx->libctx, &tmp_keymgmt,
                                           ctx->propquery);
     /*
      * If making the key provided wasn't possible, legacy may be able to pick
