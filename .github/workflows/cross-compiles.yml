@@ -66,6 +66,10 @@ jobs:
             arch: powerpc64le-linux-gnu,
             libs: libc6-dev-ppc64el-cross,
             target: linux-ppc64le
+          },  {
+            arch: powerpc64-linux-gnu,
+            libs: libc6-dev-ppc64-cross,
+            target: linux-ppc64
           }, {
             arch: riscv64-linux-gnu,
             libs: libc6-dev-riscv64-cross,
