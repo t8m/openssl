@@ -156,7 +156,7 @@ jobs:
       run: ./configdata.pm --dump
 
     - name: make
-      run: make -s -j4
+      run: make -j4
 
     - name: install qemu
       if: github.event_name == 'push' && matrix.platform.tests != 'none'
