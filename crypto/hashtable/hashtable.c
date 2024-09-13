@@ -86,6 +86,7 @@
 # define PREFETCH(x)
 #endif
 
+/*
 static ossl_unused uint64_t fnv1a_hash(uint8_t *key, size_t len)
 {
     uint64_t hash = 0xcbf29ce484222325ULL;
@@ -95,6 +96,27 @@ static ossl_unused uint64_t fnv1a_hash(uint8_t *key, size_t len)
         hash ^= key[i];
         hash *= 0x00000100000001B3ULL;
     }
+    return hash;
+}
+*/
+
+#define XXPRIME_1 11400714785074694791ULL
+#define XXPRIME_2 14029467366897019727ULL
+#define XXPRIME_5 2870177450012600261ULL
+/* Optimizing complier should produce a rotate instruction. */
+#define XXROTATE(x) ((x << 31) | (x >> 33))
+
+static uint64_t xx_hash(uint8_t *key, size_t len)
+{
+    uint64_t hash = XXPRIME_5;
+    size_t i;
+
+    for (i = 0; i < len; i++) {
+        hash += key[i] * XXPRIME_2;
+        hash = XXROTATE(hash);
+        hash *= XXPRIME_1;
+    }
+    hash += (uint64_t)len ^ XXPRIME_5;
     return hash;
 }
 
@@ -229,7 +251,7 @@ HT *ossl_ht_new(const HT_CONFIG *conf)
         goto err;
 
     if (new->config.ht_hash_fn == NULL)
-        new->config.ht_hash_fn = fnv1a_hash;
+        new->config.ht_hash_fn = xx_hash;
 
     return new;
 
