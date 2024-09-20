@@ -52,7 +52,6 @@ typedef struct ht_config_st {
     void (*ht_free_fn)(HT_VALUE *obj);
     uint64_t (*ht_hash_fn)(uint8_t *key, size_t keylen);
     size_t init_neighborhoods;
-    uint32_t collision_check;
     uint32_t lockless_reads;
 } HT_CONFIG;
 

@@ -143,7 +143,6 @@ struct ht_internal_value_st {
 };
 
 struct ht_neighborhood_entry_st {
-    uint64_t hash;
     struct ht_internal_value_st *value;
 };
 
@@ -434,11 +433,6 @@ void ossl_ht_value_list_free(HT_VALUE_LIST *list)
     OPENSSL_free(list);
 }
 
-static int compare_hash(uint64_t hash1, uint64_t hash2)
-{
-    return (hash1 == hash2);
-}
-
 static void free_old_neigh_table(void *arg)
 {
     struct ht_mutable_data_st *oldmd = arg;
@@ -457,7 +451,7 @@ static int grow_hashtable(HT *h, size_t oldsize)
     struct ht_mutable_data_st *oldmd = ossl_rcu_deref(&h->md);
     int rc = 0;
     uint64_t oldi, oldj, newi, newj;
-    uint64_t oldhash;
+    uint64_t hash;
     struct ht_internal_value_st *oldv;
     int rehashed;
     size_t newsize = oldsize * 2;
@@ -488,13 +482,13 @@ static int grow_hashtable(HT *h, size_t oldsize)
             oldv = oldmd->neighborhoods[oldi].entries[oldj].value;
             if (oldv == NULL)
                 continue;
-            oldhash = oldmd->neighborhoods[oldi].entries[oldj].hash;
-            newi = oldhash & newmd->neighborhood_mask;
+            hash = h->config.ht_hash_fn(oldv->value.key.keybuf,
+                                        oldv->value.key.keysize);
+            newi = hash & newmd->neighborhood_mask;
             rehashed = 0;
             for (newj = 0; newj < NEIGHBORHOOD_LEN; newj++) {
                 if (newmd->neighborhoods[newi].entries[newj].value == NULL) {
                     newmd->neighborhoods[newi].entries[newj].value = oldv;
-                    newmd->neighborhoods[newi].entries[newj].hash = oldhash;
                     rehashed = 1;
                     break;
                 }
@@ -556,7 +550,7 @@ static ossl_inline int match_key(HT_KEY *a, HT_KEY *b)
     if (a->keybuf != NULL && b->keybuf != NULL && a->keysize == b->keysize)
         return !memcmp(a->keybuf, b->keybuf, a->keysize);
 
-    return 1;
+    return 0;
 }
 
 static int ossl_ht_insert_locked(HT *h, uint64_t hash,
@@ -567,7 +561,6 @@ static int ossl_ht_insert_locked(HT *h, uint64_t hash,
     uint64_t neigh_idx_start = hash & md->neighborhood_mask;
     uint64_t neigh_idx = neigh_idx_start;
     size_t j;
-    uint64_t ihash;
     HT_VALUE *ival;
     size_t empty_idx = SIZE_MAX;
     int lockless_reads = h->config.lockless_reads;
@@ -584,19 +577,12 @@ static int ossl_ht_insert_locked(HT *h, uint64_t hash,
                     goto not_found;
                 continue;
             }
-            if (!CRYPTO_atomic_load(&md->neighborhoods[neigh_idx].entries[j].hash,
-                                    &ihash, h->atomic_lock))
-                return 0;
-            if (compare_hash(hash, ihash) && match_key(&newval->value.key,
-                                                       &ival->key)) {
+            if (match_key(&newval->value.key, &ival->key)) {
                 if (olddata == NULL) {
                     /* This would insert a duplicate -> fail */
                     return 0;
                 }
                 /* Do a replacement */
-                if (!CRYPTO_atomic_store(&md->neighborhoods[neigh_idx].entries[j].hash,
-                                         hash, h->atomic_lock))
-                    return 0;
                 *olddata = (HT_VALUE *)md->neighborhoods[neigh_idx].entries[j].value;
                 ossl_rcu_assign_ptr(&md->neighborhoods[neigh_idx].entries[j].value,
                                     &newval);
@@ -615,9 +601,6 @@ static int ossl_ht_insert_locked(HT *h, uint64_t hash,
     /* If we get to here, its just an insert */
     if (empty_idx == SIZE_MAX)
         return -1; /* out of space */
-    if (!CRYPTO_atomic_store(&md->neighborhoods[neigh_idx].entries[empty_idx].hash,
-                             hash, h->atomic_lock))
-        return 0;
     h->wpd.value_count++;
     ossl_rcu_assign_ptr(&md->neighborhoods[neigh_idx].entries[empty_idx].value,
                         &newval);
@@ -629,10 +612,7 @@ static struct ht_internal_value_st *alloc_new_value(HT *h, HT_KEY *key,
                                                     uintptr_t *type)
 {
     struct ht_internal_value_st *tmp;
-    size_t nvsize = sizeof(*tmp);
-
-    if (h->config.collision_check == 1)
-        nvsize += key->keysize;
+    size_t nvsize = sizeof(*tmp) + key->keysize;
 
     tmp = OPENSSL_malloc(nvsize);
 
@@ -642,13 +622,9 @@ static struct ht_internal_value_st *alloc_new_value(HT *h, HT_KEY *key,
     tmp->ht = h;
     tmp->value.value = data;
     tmp->value.type_id = type;
-    tmp->value.key.keybuf = NULL;
-    if (h->config.collision_check) {
-        tmp->value.key.keybuf = (uint8_t *)(tmp + 1);
-        tmp->value.key.keysize = key->keysize;
-        memcpy(tmp->value.key.keybuf, key->keybuf, key->keysize);
-    }
-
+    tmp->value.key.keybuf = (uint8_t *)(tmp + 1);
+    tmp->value.key.keysize = key->keysize;
+    memcpy(tmp->value.key.keybuf, key->keybuf, key->keysize);
 
     return tmp;
 }
@@ -702,7 +678,6 @@ HT_VALUE *ossl_ht_get(HT *h, HT_KEY *key)
     uint64_t neigh_idx;
     struct ht_internal_value_st *ival = NULL;
     size_t j;
-    uint64_t ehash;
     int lockless_reads = h->config.lockless_reads;
 
     hash = h->config.ht_hash_fn(key->keybuf, key->keysize);
@@ -719,10 +694,7 @@ HT_VALUE *ossl_ht_get(HT *h, HT_KEY *key)
                     return NULL;
                 continue;
             }
-            if (!CRYPTO_atomic_load(&md->neighborhoods[neigh_idx].entries[j].hash,
-                                    &ehash, h->atomic_lock))
-                return NULL;
-            if (compare_hash(hash, ehash) && match_key(&ival->value.key, key))
+            if (match_key(&ival->value.key, key))
                 return (HT_VALUE *)ival;
         }
         if (!lockless_reads)
@@ -762,11 +734,7 @@ int ossl_ht_delete(HT *h, HT_KEY *key)
         v = (struct ht_internal_value_st *)h->md->neighborhoods[neigh_idx].entries[j].value;
         if (v == NULL)
             continue;
-        if (compare_hash(hash, h->md->neighborhoods[neigh_idx].entries[j].hash)
-            && match_key(key, &v->value.key)) {
-            if (!CRYPTO_atomic_store(&h->md->neighborhoods[neigh_idx].entries[j].hash,
-                                     0, h->atomic_lock))
-                break;
+        if (match_key(key, &v->value.key)) {
             h->wpd.value_count--;
             ossl_rcu_assign_ptr(&h->md->neighborhoods[neigh_idx].entries[j].value,
                                 &nv);

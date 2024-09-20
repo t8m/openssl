@@ -13,7 +13,7 @@
 #include "internal/sizes.h"
 #include "crypto/context.h"
 
-#define NAMEMAP_HT_BUCKETS 2048
+#define NAMEMAP_HT_BUCKETS 1024
 
 HT_START_KEY_DEFN(namenum_key)
 HT_DEF_KEY_FIELD_CHAR_ARRAY(name, 64)
@@ -510,7 +510,7 @@ OSSL_NAMEMAP *ossl_namemap_stored(OSSL_LIB_CTX *libctx)
 OSSL_NAMEMAP *ossl_namemap_new(OSSL_LIB_CTX *libctx)
 {
     OSSL_NAMEMAP *namemap;
-    HT_CONFIG htconf = { NULL, NULL, NULL, NAMEMAP_HT_BUCKETS, 1, 1 };
+    HT_CONFIG htconf = { NULL, NULL, NULL, NAMEMAP_HT_BUCKETS, 1 };
 
     htconf.ctx = libctx;
 
