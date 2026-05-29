@@ -78,6 +78,12 @@ jobs:
             fips: no,
             tests: -test_includes -test_store -test_x509_store
           }, {
+            arch: loongarch64-linux-gnu,
+            libs:  libc6-dev-loong64-cross,
+            target: linux-loongarch64,
+            fips: no,
+            tests: -test_includes -test_store -test_x509_store
+          }, {
             arch: m68k-linux-gnu,
             libs: libc6-dev-m68k-cross,
             target: -static -m68040 linux-latomic -Wno-stringop-overflow,
